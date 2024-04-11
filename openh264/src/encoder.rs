@@ -4,7 +4,7 @@ use crate::error::NativeErrorExt;
 use crate::formats::YUVSource;
 use crate::{Error, OpenH264API, Timestamp};
 use openh264_sys2::{
-    videoFormatI420, EVideoFormatType, ISVCEncoder, ISVCEncoderVtbl, SEncParamBase, SEncParamExt, SFrameBSInfo, SLayerBSInfo, SSourcePicture, API, ENCODER_OPTION, ENCODER_OPTION_DATAFORMAT, ENCODER_OPTION_SVC_ENCODE_PARAM_EXT, ENCODER_OPTION_TRACE_LEVEL, RC_MODES, VIDEO_CODING_LAYER, WELS_LOG_DETAIL, WELS_LOG_QUIET
+    videoFormatI420, EVideoFormatType, ISVCEncoder, ISVCEncoderVtbl, SEncParamBase, SEncParamExt, SFrameBSInfo, SLayerBSInfo, SSourcePicture, API, ENCODER_OPTION, ENCODER_OPTION_BITRATE, ENCODER_OPTION_DATAFORMAT, ENCODER_OPTION_SVC_ENCODE_PARAM_EXT, ENCODER_OPTION_TRACE_LEVEL, RC_MODES, VIDEO_CODING_LAYER, WELS_LOG_DETAIL, WELS_LOG_QUIET
 };
 use std::os::raw::{c_int, c_uchar, c_void};
 use std::ptr::{addr_of_mut, null, null_mut};
@@ -405,6 +405,28 @@ impl Encoder {
 
     fn is_initialized(&self) -> bool {
         self.previous_dimensions.is_some()
+    }
+
+    /// Sets the requested bit rate in bits per second.
+    pub fn set_bitrate_bps(&mut self, bps: u32) -> Result<(), Error> {
+        if self.config.target_bitrate == bps {
+            return Ok(());
+        }
+
+        self.config.target_bitrate = bps;
+
+        // If raw_api is already initialized, we do a runtime change, otherwise
+        // rely on the bitrate being set when calling initialize_ext()
+        if self.is_initialized() {
+            unsafe {
+                let mut bps = bps;
+                self.raw_api
+                    .set_option(ENCODER_OPTION_BITRATE, &mut bps as *mut u32 as *mut c_void)
+                    .ok()?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Obtain the raw API for advanced use cases.
